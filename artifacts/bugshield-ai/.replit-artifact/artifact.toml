@@ -1,0 +1,14 @@
+kind = "web"
+previewPath = "/"
+title = "BugShield-AI"
+version = "1.0.0"
+id = "artifacts/bugshield-ai"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 8501
+
+[services.development]
+run = "cd /home/runner/workspace/bugshield && streamlit run app.py --server.port 8501 --server.address 0.0.0.0"

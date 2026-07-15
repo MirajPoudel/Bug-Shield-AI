@@ -1,0 +1,52 @@
+{
+  "demo": [
+    {
+      "language": "python",
+      "model": "qwen2.5-coder:1.5b",
+      "score": 85,
+      "code_preview": "from typing import TypedDict, Optional, Any\r\nfrom langgraph.graph import StateGraph, END\r\nimport pandas as pd\r\n\r\nfrom ag",
+      "analysis": {
+        "summary": "The code is well-structured and follows clean coding principles. There are some areas for improvement in terms of performance and security.",
+        "score": 85,
+        "rating": "Good",
+        "readability": 80,
+        "maintainability": 85,
+        "best_practices": 90,
+        "strengths": [
+          "Clear separation of concerns",
+          "Effective handling of edge cases",
+          "Consistent naming conventions"
+        ]
+      },
+      "bugs": [
+        {
+          "type": "performance",
+          "severity": "medium",
+          "title": "Nested loops causing O(n\u00b2) complexity",
+          "description": "The nested loops for finding user and product details have potential performance issues with large datasets.",
+          "line_hint": "Inner loop",
+          "solution": "Consider using a map or object to store user and product data for faster lookups"
+        }
+      ],
+      "improvements": [
+        {
+          "category": "performance",
+          "title": "Use dictionary lookups instead of nested loops",
+          "description": "Replace nested loops with O(1) dictionary lookups for better scalability.",
+          "code_before": "for item in list:\n    for sub in other_list:\n        if item.id == sub.id: ...",
+          "code_after": "lookup = {item.id: item for item in other_list}\nresult = lookup.get(target_id)"
+        },
+        {
+          "category": "readability",
+          "title": "Add type hints to function signatures",
+          "description": "Type hints improve code readability and enable better IDE support.",
+          "code_before": "def process(data, users):",
+          "code_after": "def process(data: list, users: dict) -> dict:"
+        }
+      ],
+      "docs": "## Module Documentation\n\n### Overview\nThis python module provides core functionality for data processing and management.\n\n### Functions\n\n#### `main_function(data, config)`\nProcesses input data according to the provided configuration.\n\n**Parameters:**\n- `data` - Input data to process\n- `config` - Configuration dictionary with processing options\n\n**Returns:**\n- Processed result object\n\n### Usage Example\n```python\nresult = main_function(my_data, {\"mode\": \"fast\"})\nprint(result)\n```\n\n### Notes\n- Ensure input data is properly validated before calling\n- The function is not thread-safe by default\n",
+      "summary": "The code is well-structured and follows clean coding principles. There are some areas for improvement in readability, performance, and security.",
+      "timestamp": "2026-07-15T08:29:44.472936"
+    }
+  ]
+}
