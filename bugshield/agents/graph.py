@@ -56,6 +56,7 @@ def _get_llm(model: str, temperature: float = 0.1):
         model=model,
         base_url=OLLAMA_BASE_URL,
         temperature=temperature,
+        request_timeout=120,   # 2-minute hard cap per agent call
     )
 
 
@@ -304,8 +305,6 @@ def build_review_graph():
 
 def run_review(code: str, language: str, model: str) -> dict:
     """Run the full multi-agent review pipeline."""
-    # Auto-pull model if missing (non-blocking if Ollama is unavailable)
-    ensure_model(model)
     graph = build_review_graph()
     initial_state: ReviewState = {
         "code": code,
@@ -321,3 +320,34 @@ def run_review(code: str, language: str, model: str) -> dict:
     }
     result = graph.invoke(initial_state)
     return result
+
+
+# ── Step-by-step runner (for real per-agent progress in the UI) ────
+STEP_NODES = [
+    ("code_analyzer",    "🔍", "Code Analyzer",           code_analyzer_node),
+    ("bug_detector",     "🐛", "Bug Detector",             bug_detector_node),
+    ("improvement_agent","💡", "Improvement Agent",        improvement_agent_node),
+    ("doc_generator",    "📖", "Documentation Generator", doc_generator_node),
+]
+
+def run_review_stepwise(code: str, language: str, model: str):
+    """
+    Generator that runs one agent at a time and yields after each step.
+    Each yield returns (step_index, icon, name, partial_state).
+    Caller iterates this to update the UI between steps.
+    """
+    state: ReviewState = {
+        "code": code,
+        "language": language,
+        "model": model,
+        "analysis": None,
+        "bugs": None,
+        "improvements": None,
+        "docs": None,
+        "score": None,
+        "summary": None,
+        "error": None,
+    }
+    for i, (key, icon, name, node_fn) in enumerate(STEP_NODES):
+        state = node_fn(state)
+        yield i, icon, name, state

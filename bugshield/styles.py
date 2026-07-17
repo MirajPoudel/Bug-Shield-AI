@@ -17,7 +17,33 @@ html, body, [data-testid="stAppViewContainer"] {
 }
 
 [data-testid="stHeader"] {
-    background-color: #050d1a !important;
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    visibility: hidden !important;
+}
+
+/* ── Strip every bit of top padding Streamlit inserts after hiding the header.
+   We use the most-specific selector chain possible so it beats Emotion styles. ── */
+html body div[data-testid="stAppViewContainer"]
+    section[data-testid="stMain"]
+    div[data-testid="stMainBlockContainer"] {
+    padding-top: 0 !important;
+}
+html body div[data-testid="stAppViewContainer"]
+    section[data-testid="stMain"] > div {
+    padding-top: 0 !important;
+}
+/* Catch-all for older selector shapes */
+[data-testid="stMainBlockContainer"],
+[data-testid="stAppViewBlockContainer"],
+section[data-testid="stMain"],
+.block-container,
+div.block-container,
+.main .block-container {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
 }
 
 /* Hide Streamlit default elements */

@@ -10,9 +10,18 @@ def render(go, tab: str = "signin"):
     if "auth_tab" not in st.session_state:
         st.session_state.auth_tab = tab
 
+    # Sticky top bar — anchors content to y=0 and hides any residual block-container gap
     st.markdown("""
-    <div style="min-height: 100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 40px 0;
-         background: radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.10) 0%, transparent 65%);">
+    <div style="position:fixed;top:0;left:0;right:0;z-index:9999;
+                height:56px;background:#050d1a;
+                border-bottom:1px solid #1a2744;
+                display:flex;align-items:center;padding:0 24px;gap:10px;">
+      <span style="font-size:22px;background:linear-gradient(135deg,#f97316,#3b82f6);
+                   -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                   background-clip:text;font-weight:900;">⬡</span>
+      <span style="font-size:16px;font-weight:800;color:#fff;">BugShield-AI</span>
+    </div>
+    <div style="height:56px"></div>
     """, unsafe_allow_html=True)
 
     # Logo

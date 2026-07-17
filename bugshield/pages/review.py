@@ -188,7 +188,13 @@ def render(go):
 
 
 def _run_review(go, code: str, language: str, model: str):
-    """Run the multi-agent pipeline with progress display."""
+    """Run the multi-agent pipeline with real per-agent progress display."""
+    from agents.graph import (
+        run_review_stepwise, STEP_NODES,
+        _mock_analysis, _mock_bugs, _mock_improvements, _mock_docs,
+        ensure_model,
+    )
+
     st.markdown('<div class="bs-divider"></div>', unsafe_allow_html=True)
     st.markdown("""
     <div style="text-align:center; margin-bottom:24px;">
@@ -197,77 +203,108 @@ def _run_review(go, code: str, language: str, model: str):
     </div>
     """, unsafe_allow_html=True)
 
-    steps = [
-        ("🔍", "Code Analyzer", "Evaluating structure, quality & readability..."),
-        ("🐛", "Bug Detector", "Scanning for bugs, security issues & performance problems..."),
-        ("💡", "Improvement Agent", "Generating refactoring suggestions & better patterns..."),
-        ("📖", "Documentation Generator", "Writing professional documentation..."),
-    ]
-
-    progress_bar = st.progress(0, text="Initializing agents...")
+    progress_bar = st.progress(0, text="Initializing…")
     status_placeholder = st.empty()
 
-    for i, (icon, name, desc) in enumerate(steps):
-        progress_bar.progress((i) / len(steps), text=f"Running {name}...")
-        status_placeholder.markdown(f"""
-        <div class="bs-agent-step active">
-          <span class="bs-step-icon">{icon}</span>
-          <div>
-            <div class="bs-step-name">{name}</div>
-            <div class="bs-step-desc">{desc}</div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-        time.sleep(0.1)
-
-    # Check Ollama availability
+    # ── 1. Check Ollama ───────────────────────────────────────────────
     try:
-        import requests as req_lib
-        resp = req_lib.get("http://localhost:11434/api/tags", timeout=3)
-        ollama_ok = resp.status_code == 200
+        import requests as _r
+        ollama_ok = _r.get("http://localhost:11434/api/tags", timeout=5).status_code == 200
     except Exception:
         ollama_ok = False
 
     if not ollama_ok:
-        progress_bar.progress(100, text="Using demo mode (Ollama not detected)")
+        progress_bar.progress(100, text="Demo mode — Ollama not running")
         status_placeholder.markdown("""
         <div class="bs-alert bs-alert-warning">
-          ⚠️ <strong>Ollama not detected</strong> at localhost:11434. Running in demo mode with simulated results.
-          To use real AI: install Ollama, run <code>ollama serve</code>, then pull a model.
+          ⚠️ <strong>Ollama is not running.</strong>
+          The app will return demo results. Restart the workflow to bring Ollama back up.
         </div>
         """, unsafe_allow_html=True)
-        # Use mock
-        from agents.graph import _mock_analysis, _mock_bugs, _mock_improvements, _mock_docs
-        import re
         result = {
-            "code": code,
-            "language": language,
-            "model": model,
-            "analysis": _mock_analysis(),
-            "bugs": _mock_bugs(),
-            "improvements": _mock_improvements(),
-            "docs": _mock_docs(language),
+            "code": code, "language": language, "model": model,
+            "analysis": _mock_analysis(), "bugs": _mock_bugs(),
+            "improvements": _mock_improvements(), "docs": _mock_docs(language),
             "score": 85,
-            "summary": "The code is well-structured and follows clean coding principles. There are some areas for improvement in readability, performance, and security.",
-            "error": "demo_mode",
+            "summary": "Demo mode — Ollama server is not running. Restart the workflow and try again.",
+            "error": "ollama_unavailable",
         }
-    else:
-        try:
-            from agents.graph import run_review
-            result = run_review(code=code, language=language, model=model)
-            progress_bar.progress(100, text="Analysis complete!")
-            status_placeholder.empty()
-        except Exception as e:
-            progress_bar.progress(100, text="Completed with errors")
-            from agents.graph import _mock_analysis, _mock_bugs, _mock_improvements, _mock_docs
+        _save_and_navigate(go, code, language, model, result)
+        return
+
+    # ── 2. Ensure model is pulled ─────────────────────────────────────
+    progress_bar.progress(0, text=f"Checking model {model}…")
+    status_placeholder.markdown(
+        f'<div style="text-align:center;color:#64748b;font-size:14px;">🔍 Verifying <code>{model}</code> is available…</div>',
+        unsafe_allow_html=True,
+    )
+    model_ready = ensure_model(model)
+    if not model_ready:
+        progress_bar.progress(100, text="Model unavailable — using demo mode")
+        status_placeholder.markdown(f"""
+        <div class="bs-alert bs-alert-warning">
+          ⚠️ <strong>Could not pull model <code>{model}</code>.</strong>
+          Returning demo results. Check your connection or try a smaller model.
+        </div>
+        """, unsafe_allow_html=True)
+        result = {
+            "code": code, "language": language, "model": model,
+            "analysis": _mock_analysis(), "bugs": _mock_bugs(),
+            "improvements": _mock_improvements(), "docs": _mock_docs(language),
+            "score": 85,
+            "summary": f"Demo mode — model '{model}' could not be loaded.",
+            "error": "model_unavailable",
+        }
+        _save_and_navigate(go, code, language, model, result)
+        return
+
+    # ── 3. Run agents one-by-one with live progress ───────────────────
+    n = len(STEP_NODES)
+    step_descs = [
+        "Evaluating structure, quality & readability…",
+        "Scanning for bugs, security issues & performance problems…",
+        "Generating refactoring suggestions & better patterns…",
+        "Writing professional documentation…",
+    ]
+    result = None
+    try:
+        for i, icon, name, partial_state in run_review_stepwise(code, language, model):
+            pct = int((i + 1) / n * 100)
+            progress_bar.progress(pct, text=f"✅ {name} done ({i+1}/{n})")
+            desc = step_descs[i + 1] if i + 1 < n else "Finishing up…"
+            next_icon, next_name = (STEP_NODES[i + 1][1], STEP_NODES[i + 1][2]) if i + 1 < n else ("", "")
+            status_placeholder.markdown(f"""
+            <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+              <div style="color:#22c55e;font-size:13px;">✅ {icon} {name} complete</div>
+              {"<div style='color:#94a3b8;font-size:13px;'>⏳ " + next_icon + " " + next_name + " — " + desc + "</div>" if next_name else ""}
+            </div>
+            """, unsafe_allow_html=True)
+            result = partial_state
+
+        progress_bar.progress(100, text="✅ All agents complete!")
+        status_placeholder.empty()
+
+    except Exception as e:
+        progress_bar.progress(100, text="Completed with errors")
+        status_placeholder.markdown(f"""
+        <div class="bs-alert bs-alert-warning">
+          ⚠️ One or more agents encountered an error: <code>{str(e)[:120]}</code>.
+          Partial results are shown below.
+        </div>
+        """, unsafe_allow_html=True)
+        if result is None:
             result = {
                 "code": code, "language": language, "model": model,
                 "analysis": _mock_analysis(), "bugs": _mock_bugs(),
                 "improvements": _mock_improvements(), "docs": _mock_docs(language),
-                "score": 85, "summary": "Analysis completed.", "error": str(e),
+                "score": 85, "summary": "Analysis completed with errors.", "error": str(e),
             }
 
-    # Save to history
+    _save_and_navigate(go, code, language, model, result)
+
+
+def _save_and_navigate(go, code: str, language: str, model: str, result: dict):
+    """Save review to history then navigate to results page."""
     from auth import save_review
     save_review(st.session_state.username, {
         "language": language,
@@ -280,7 +317,6 @@ def _run_review(go, code: str, language: str, model: str):
         "docs": result.get("docs"),
         "summary": result.get("summary"),
     })
-
     st.session_state.review_result = result
     go("results")
 
