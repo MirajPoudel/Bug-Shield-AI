@@ -22,15 +22,32 @@ def render(go):
     docs = result.get("docs") or ""
     language = result.get("language", "code")
     model = result.get("model", "")
-    score = result.get("score") or analysis.get("score", 0) or 75
-    summary = result.get("summary") or analysis.get("summary", "")
+    agent_errors = result.get("agent_errors") or []
     is_demo = result.get("error") == "demo_mode"
+
+    # Score: never fake-fallback to 75 — use 0 if the analysis actually failed
+    raw_score = result.get("score")
+    if raw_score is None:
+        raw_score = analysis.get("score")
+    score = raw_score if raw_score is not None else 0
+
+    summary = result.get("summary") or analysis.get("summary", "")
 
     if is_demo:
         st.markdown("""
         <div class="bs-alert bs-alert-warning">
           ⚠️ <strong>Demo mode:</strong> Ollama is not running. Results are simulated for preview.
           Start Ollama with <code>ollama serve</code> for real AI analysis.
+        </div>
+        """, unsafe_allow_html=True)
+
+    if agent_errors:
+        details = "".join(f"<li style='margin:4px 0;font-size:13px;color:#fca5a5;'>{e}</li>" for e in agent_errors)
+        st.markdown(f"""
+        <div class="bs-alert bs-alert-error" style="margin-bottom:16px;">
+          ⚠️ <strong>One or more AI agents failed</strong> — results below may be incomplete.<br>
+          This usually happens when the model can't parse very short or syntactically broken code.
+          <ul style="margin:8px 0 0 16px;padding:0;">{details}</ul>
         </div>
         """, unsafe_allow_html=True)
 

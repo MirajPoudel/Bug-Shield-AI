@@ -39,8 +39,6 @@ def render(go, tab: str = "signin"):
     # Center the form
     _, center, _ = st.columns([1, 1.4, 1])
     with center:
-        st.markdown('<div class="bs-auth-card">', unsafe_allow_html=True)
-
         # Tab toggle
         tab_col1, tab_col2 = st.columns(2)
         with tab_col1:
@@ -85,7 +83,6 @@ def render(go, tab: str = "signin"):
               padding:10px;text-align:center;font-size:14px;color:#94a3b8;cursor:pointer;">
               ⚫ GitHub</div>""", unsafe_allow_html=True)
 
-        st.markdown('</div>', unsafe_allow_html=True)
 
     # Footer link
     if st.session_state.auth_tab == "signin":

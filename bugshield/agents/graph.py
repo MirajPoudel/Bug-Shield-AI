@@ -49,6 +49,7 @@ class ReviewState(TypedDict):
     score: Optional[int]
     summary: Optional[str]
     error: Optional[str]
+    agent_errors: Optional[list]   # collects per-agent failure messages
 
 
 def _get_llm(model: str, temperature: float = 0.1):
@@ -106,10 +107,14 @@ Respond ONLY with valid JSON."""
         response = llm.invoke(prompt)
         parsed = _parse_json_response(response.content)
         if not parsed or not isinstance(parsed, dict):
-            raise ValueError("Empty response")
+            raise ValueError(f"Model returned non-JSON response: {response.content[:200]}")
         return {**state, "analysis": parsed, "score": parsed.get("score", 75), "summary": parsed.get("summary", "")}
     except Exception as e:
-        return {**state, "error": f"Analyzer error: {str(e)}", "analysis": _mock_analysis(), "score": 75, "summary": "Code analysis complete."}
+        err = f"Code Analyzer failed: {str(e)}"
+        fallback = {"summary": "AI analysis failed — the model could not process this code.", "score": 0,
+                    "rating": "Error", "readability": 0, "maintainability": 0, "best_practices": 0, "strengths": []}
+        return {**state, "error": err, "analysis": fallback, "score": 0, "summary": fallback["summary"],
+                "agent_errors": (state.get("agent_errors") or []) + [err]}
 
 
 def bug_detector_node(state: ReviewState) -> ReviewState:
@@ -146,7 +151,9 @@ Respond ONLY with valid JSON array."""
             parsed = []
         return {**state, "bugs": parsed}
     except Exception as e:
-        return {**state, "bugs": _mock_bugs(), "error": f"Bug detector error: {str(e)}"}
+        err = f"Bug Detector failed: {str(e)}"
+        return {**state, "bugs": [], "error": err,
+                "agent_errors": (state.get("agent_errors") or []) + [err]}
 
 
 def improvement_agent_node(state: ReviewState) -> ReviewState:
@@ -180,7 +187,9 @@ Respond ONLY with valid JSON array. Limit to top 5 most impactful improvements."
             parsed = []
         return {**state, "improvements": parsed}
     except Exception as e:
-        return {**state, "improvements": _mock_improvements(), "error": f"Improvement error: {str(e)}"}
+        err = f"Improvement Agent failed: {str(e)}"
+        return {**state, "improvements": [], "error": err,
+                "agent_errors": (state.get("agent_errors") or []) + [err]}
 
 
 def doc_generator_node(state: ReviewState) -> ReviewState:
@@ -207,82 +216,9 @@ Respond with markdown documentation only."""
         response = llm.invoke(prompt)
         return {**state, "docs": response.content}
     except Exception as e:
-        return {**state, "docs": _mock_docs(state["language"]), "error": f"Doc error: {str(e)}"}
-
-
-def _mock_analysis() -> dict:
-    return {
-        "summary": "The code is well-structured and follows clean coding principles. There are some areas for improvement in terms of performance and security.",
-        "score": 85,
-        "rating": "Good",
-        "readability": 80,
-        "maintainability": 85,
-        "best_practices": 90,
-        "strengths": [
-            "Clear separation of concerns",
-            "Effective handling of edge cases",
-            "Consistent naming conventions"
-        ]
-    }
-
-def _mock_bugs() -> list:
-    return [
-        {
-            "type": "performance",
-            "severity": "medium",
-            "title": "Nested loops causing O(n²) complexity",
-            "description": "The nested loops for finding user and product details have potential performance issues with large datasets.",
-            "line_hint": "Inner loop",
-            "solution": "Consider using a map or object to store user and product data for faster lookups"
-        }
-    ]
-
-def _mock_improvements() -> list:
-    return [
-        {
-            "category": "performance",
-            "title": "Use dictionary lookups instead of nested loops",
-            "description": "Replace nested loops with O(1) dictionary lookups for better scalability.",
-            "code_before": "for item in list:\n    for sub in other_list:\n        if item.id == sub.id: ...",
-            "code_after": "lookup = {item.id: item for item in other_list}\nresult = lookup.get(target_id)"
-        },
-        {
-            "category": "readability",
-            "title": "Add type hints to function signatures",
-            "description": "Type hints improve code readability and enable better IDE support.",
-            "code_before": "def process(data, users):",
-            "code_after": "def process(data: list, users: dict) -> dict:"
-        }
-    ]
-
-def _mock_docs(language: str) -> str:
-    return f"""## Module Documentation
-
-### Overview
-This {language} module provides core functionality for data processing and management.
-
-### Functions
-
-#### `main_function(data, config)`
-Processes input data according to the provided configuration.
-
-**Parameters:**
-- `data` - Input data to process
-- `config` - Configuration dictionary with processing options
-
-**Returns:**
-- Processed result object
-
-### Usage Example
-```{language}
-result = main_function(my_data, {{"mode": "fast"}})
-print(result)
-```
-
-### Notes
-- Ensure input data is properly validated before calling
-- The function is not thread-safe by default
-"""
+        err = f"Doc Generator failed: {str(e)}"
+        return {**state, "docs": "_Documentation could not be generated — the AI model did not respond correctly._",
+                "error": err, "agent_errors": (state.get("agent_errors") or []) + [err]}
 
 
 def build_review_graph():
@@ -317,6 +253,7 @@ def run_review(code: str, language: str, model: str) -> dict:
         "score": None,
         "summary": None,
         "error": None,
+        "agent_errors": [],
     }
     result = graph.invoke(initial_state)
     return result
@@ -347,6 +284,7 @@ def run_review_stepwise(code: str, language: str, model: str):
         "score": None,
         "summary": None,
         "error": None,
+        "agent_errors": [],
     }
     for i, (key, icon, name, node_fn) in enumerate(STEP_NODES):
         state = node_fn(state)

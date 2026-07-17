@@ -189,11 +189,18 @@ def render(go):
 
 def _run_review(go, code: str, language: str, model: str):
     """Run the multi-agent pipeline with real per-agent progress display."""
-    from agents.graph import (
-        run_review_stepwise, STEP_NODES,
-        _mock_analysis, _mock_bugs, _mock_improvements, _mock_docs,
-        ensure_model,
-    )
+    from agents.graph import run_review_stepwise, STEP_NODES, ensure_model
+
+    def _error_result(code, language, model, reason, error_key):
+        return {
+            "code": code, "language": language, "model": model,
+            "analysis": {"summary": reason, "score": 0, "rating": "Error",
+                         "readability": 0, "maintainability": 0, "best_practices": 0, "strengths": []},
+            "bugs": [], "improvements": [],
+            "docs": "_Documentation could not be generated._",
+            "score": 0, "summary": reason,
+            "error": error_key, "agent_errors": [reason],
+        }
 
     st.markdown('<div class="bs-divider"></div>', unsafe_allow_html=True)
     st.markdown("""
@@ -221,14 +228,9 @@ def _run_review(go, code: str, language: str, model: str):
           The app will return demo results. Restart the workflow to bring Ollama back up.
         </div>
         """, unsafe_allow_html=True)
-        result = {
-            "code": code, "language": language, "model": model,
-            "analysis": _mock_analysis(), "bugs": _mock_bugs(),
-            "improvements": _mock_improvements(), "docs": _mock_docs(language),
-            "score": 85,
-            "summary": "Demo mode — Ollama server is not running. Restart the workflow and try again.",
-            "error": "ollama_unavailable",
-        }
+        result = _error_result(code, language, model,
+            "Ollama is not running — start it with `ollama serve` and try again.",
+            "ollama_unavailable")
         _save_and_navigate(go, code, language, model, result)
         return
 
@@ -247,14 +249,9 @@ def _run_review(go, code: str, language: str, model: str):
           Returning demo results. Check your connection or try a smaller model.
         </div>
         """, unsafe_allow_html=True)
-        result = {
-            "code": code, "language": language, "model": model,
-            "analysis": _mock_analysis(), "bugs": _mock_bugs(),
-            "improvements": _mock_improvements(), "docs": _mock_docs(language),
-            "score": 85,
-            "summary": f"Demo mode — model '{model}' could not be loaded.",
-            "error": "model_unavailable",
-        }
+        result = _error_result(code, language, model,
+            f"Model '{model}' could not be pulled. Check your connection or select a smaller model.",
+            "model_unavailable")
         _save_and_navigate(go, code, language, model, result)
         return
 
@@ -293,12 +290,8 @@ def _run_review(go, code: str, language: str, model: str):
         </div>
         """, unsafe_allow_html=True)
         if result is None:
-            result = {
-                "code": code, "language": language, "model": model,
-                "analysis": _mock_analysis(), "bugs": _mock_bugs(),
-                "improvements": _mock_improvements(), "docs": _mock_docs(language),
-                "score": 85, "summary": "Analysis completed with errors.", "error": str(e),
-            }
+            result = _error_result(code, language, model,
+                f"Analysis failed: {str(e)[:200]}", str(e))
 
     _save_and_navigate(go, code, language, model, result)
 

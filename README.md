@@ -41,26 +41,32 @@
 
 ```
 bugshield/
-├── app.py                  # Streamlit entry point & page router
-├── auth.py                 # JSON-file-based auth + review history storage
-├── styles.py                # Injected CSS for the dark UI theme
-├── start.sh                 # Starts Ollama (if not running) then Streamlit
+├── app.py                    # Streamlit entry point & page router
+├── auth.py                   # JSON-file-based auth + review history storage
+├── styles.py                 # Injected CSS for the dark UI theme
+├── start.sh                  # Starts Ollama (if not running) then Streamlit
 ├── ollama_startup.sh         # Standalone helper to pre-pull the default model
+├── .streamlit/
+│   └── config.toml           # Streamlit server config (host, CORS, etc.)
 ├── agents/
+│   ├── __init__.py
 │   └── graph.py              # LangGraph pipeline: 4 agents + Ollama model management
 ├── pages/
-│   ├── landing.py             # Marketing landing page
-│   ├── login.py               # Sign in / sign up
-│   ├── review.py               # Code input (paste / upload / GitHub) + run pipeline
-│   ├── results.py              # Score, bugs, strengths, improvements, docs, code tabs
-│   └── history.py               # Past reviews, filterable by language
+│   ├── __init__.py
+│   ├── landing.py            # Marketing landing page
+│   ├── login.py              # Sign in / sign up
+│   ├── review.py             # Code input (paste / upload / GitHub) + run pipeline
+│   ├── results.py            # Score, bugs, strengths, improvements, docs, code tabs
+│   └── history.py            # Past reviews, filterable by language
 ├── utils/
-│   └── github_fetcher.py       # Fetches & language-detects files from GitHub URLs
+│   ├── __init__.py
+│   └── github_fetcher.py     # Fetches & language-detects files from GitHub URLs
 └── data/
-    ├── users.json               # Seeded demo accounts + signups
-    └── reviews.json              # Saved review history
+    ├── users.json             # Seeded demo accounts + signups
+    └── reviews.json           # Saved review history
 
-artifacts/bugshield-ai/          # Unused React/Vite scaffold (not integrated)
+question.md       # all the basic question of the system with their answer.
+README.md       # all the information and command to run the system
 ```
 
 ---
@@ -71,23 +77,47 @@ artifacts/bugshield-ai/          # Unused React/Vite scaffold (not integrated)
 - Python 3.12
 - [Ollama](https://ollama.com) installed and available on `PATH`
 
-### Run it
-The project ships with `bugshield/start.sh`, which starts Ollama (if it isn't already running) and then launches Streamlit:
+---
 
-```bash
-bash bugshield/start.sh
-```
+### ▶ Running on Replit
+The Replit workflow (`artifacts/bugshield-ai: web`) runs `start.sh` automatically — no setup needed. The app becomes available on port `8501`.
 
-This is also what the configured Replit workflow (`artifacts/bugshield-ai: web`) runs automatically — the app becomes available on port `8501`.
+---
 
-If you're running outside Replit, install dependencies first:
+### 🐧 Running on Linux
+Install dependencies, then run the startup script:
 
 ```bash
 pip install streamlit langgraph langchain-ollama requests
+bash bugshield/start.sh
 ```
 
+`start.sh` will start the Ollama server if it isn't already running, pull the default model, and then launch Streamlit.
+
+---
+
+### 🍎 Running on Mac
+On Mac, Ollama runs as a background menu-bar app rather than a CLI server.
+
+1. **Install Ollama** — download the Mac app from [ollama.com](https://ollama.com) and open it. It starts automatically and runs in the background.
+2. **Install Python dependencies:**
+   ```bash
+   pip install streamlit langgraph langchain-ollama requests
+   ```
+3. **Pull the default model** (first time only):
+   ```bash
+   ollama pull qwen2.5-coder:1.5b
+   ```
+4. **Launch the app** — since Ollama is already running, skip `start.sh` and run Streamlit directly:
+   ```bash
+   streamlit run bugshield/app.py --server.port 8501
+   ```
+   Then open [http://localhost:8501](http://localhost:8501) in your browser.
+
+---
+
 ### First run
-- On first use, the default model (`qwen2.5-coder:1.5b`, ~1 GB) is pulled automatically the first time you run a review — this can take a minute or two.
+- `start.sh` automatically pulls the default model (`qwen2.5-coder:1.5b`, ~1 GB) **at startup** before Streamlit launches — so the very first review is instant with no waiting. On a cold container this takes ~30 seconds.
 - A demo account is seeded automatically: **username** `demo`, **password** `demo123`.
 
 ---
